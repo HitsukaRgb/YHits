@@ -1,0 +1,27 @@
+[package]
+name = "YHits"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[build-dependencies]
+winres = "0.1.12"
+
+[dependencies]
+dirs = "7.0.0"
+futures = "0.3.34"
+iced = { version = "0.14.0", default-features = false, features = [
+    "wgpu",
+    "tiny-skia",
+    "crisp",
+    "thread-pool",
+    "web-colors",
+    "image",
+    "advanced",
+] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+ureq = "2.12.1"
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }

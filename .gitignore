@@ -1,0 +1,40 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Python leftovers / local probes
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+_probe*.py
+_capture*.py
+_drive*.py
+*.json.bak
+
+# IDE / editor
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Env / local secrets
+.env
+.env.*
+!.env.example
+
+# Local dumps / temp media
+*.log
+*.part
+*.ytdl
+*.temp
+flat.json
+partial.json
+_innertube.json
