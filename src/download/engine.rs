@@ -801,9 +801,11 @@ fn ytdlp_command(
         .arg("--parse-metadata")
         .arg(":(?P<meta_genre>)");
 
-    // Prefer this video's artists over flat playlist Topic-channel rows.
+    // Prefer this video's artists over title-parsed / Topic-channel rows.
+    // `%(artists|)l` stays empty when missing — plain `%(artists)l` would write "NA"
+    // and wipe a correct artist parsed from "Artist - Title" on custom playlists.
     cmd.arg("--parse-metadata")
-        .arg("%(artists)l:%(artist)s")
+        .arg("%(artists|)l:%(artist)s")
         .arg("--replace-in-metadata")
         .arg("artist")
         .arg(r"^(.+?)(?:[,;]\s*\1)+[,;]?\s*$")

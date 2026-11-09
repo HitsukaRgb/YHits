@@ -250,16 +250,15 @@ fn parse_track(value: &Value) -> Option<TrackPreview> {
         .filter(|id| !id.is_empty())?
         .to_string();
 
-    let title = value
+    let raw_title = value
         .get("track")
         .and_then(Value::as_str)
         .or_else(|| value.get("title").and_then(Value::as_str))
         .map(str::trim)
         .filter(|title| !title.is_empty())
-        .unwrap_or_else(|| t(Tr::UntitledTrack))
-        .to_string();
+        .unwrap_or_else(|| t(Tr::UntitledTrack));
 
-    let artists = artists_of(value);
+    let (title, artists) = resolve_title_artists(value, raw_title);
     let album = album_of(value);
     let duration_secs = value
         .get("duration")
@@ -350,7 +349,8 @@ fn load_tracks_meta_chunk(jobs: &[(usize, String)]) -> Vec<(usize, TrackMeta)> {
         return Vec::new();
     }
 
-    let template = format!("%(id)s{META_SEP}%(artists)l{META_SEP}%(album)s");
+    // `%(artists|)l` avoids the literal "NA" yt-dlp prints for missing Music artists.
+    let template = format!("%(id)s{META_SEP}%(artists|)l{META_SEP}%(album)s");
     let mut cmd = Command::new("yt-dlp");
     cmd.arg("--skip-download")
         .arg("--no-playlist")
@@ -441,7 +441,25 @@ fn video_id_from_url(url: &str) -> Option<String> {
     None
 }
 
-fn artists_of(value: &Value) -> Vec<String> {
+fn resolve_title_artists(value: &Value, raw_title: &str) -> (String, Vec<String>) {
+    let dedicated = dedicated_artists_of(value);
+    if !dedicated.is_empty() {
+        return (raw_title.to_string(), dedicated);
+    }
+
+    // Custom playlists often use "Artist - Title" while channel/uploader is a reuploader.
+    if let Some((artist, song)) = split_artist_title(raw_title) {
+        let mut artists = Vec::new();
+        push_artist_parts(&mut artists, &artist);
+        if !artists.is_empty() && !song.is_empty() {
+            return (song, artists);
+        }
+    }
+
+    (raw_title.to_string(), channel_artists_of(value))
+}
+
+fn dedicated_artists_of(value: &Value) -> Vec<String> {
     let mut names = Vec::new();
 
     if let Some(artists) = value.get("artists").and_then(Value::as_array) {
@@ -466,23 +484,39 @@ fn artists_of(value: &Value) -> Vec<String> {
         }
     }
 
-    if names.is_empty() {
-        for key in ["channel", "uploader"] {
-            if let Some(raw) = value
-                .get(key)
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|name| !name.is_empty())
-            {
-                push_artist_parts(&mut names, raw);
-                if !names.is_empty() {
-                    break;
-                }
+    names
+}
+
+fn channel_artists_of(value: &Value) -> Vec<String> {
+    let mut names = Vec::new();
+    for key in ["channel", "uploader"] {
+        if let Some(raw) = value
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+        {
+            push_artist_parts(&mut names, raw);
+            if !names.is_empty() {
+                break;
             }
         }
     }
-
     names
+}
+
+fn split_artist_title(title: &str) -> Option<(String, String)> {
+    let trimmed = title.trim();
+    for sep in [" - ", " – ", " — "] {
+        if let Some((left, right)) = trimmed.split_once(sep) {
+            let artist = left.trim();
+            let song = right.trim();
+            if !artist.is_empty() && !song.is_empty() {
+                return Some((artist.to_string(), song.to_string()));
+            }
+        }
+    }
+    None
 }
 
 fn push_artist_parts(names: &mut Vec<String>, raw: &str) {
@@ -779,6 +813,36 @@ mod tests {
         assert!(track.album.is_empty());
         assert_eq!(track.url, "https://www.youtube.com/watch?v=fxFlat01");
         assert!(track.needs_meta_enrichment());
+    }
+
+    #[test]
+    fn custom_playlist_splits_artist_title_over_reuploader() {
+        let track = parse_track(&json!({
+            "id": "fxReup01",
+            "title": "Death Grips - Fyrd Up",
+            "uploader": "MKULTRA PSYOP",
+            "channel": "MKULTRA PSYOP",
+            "url": "https://music.youtube.com/watch?v=fxReup01"
+        }))
+        .unwrap();
+        assert_eq!(track.title, "Fyrd Up");
+        assert_eq!(track.artists, vec!["Death Grips".to_string()]);
+        assert!(track.album.is_empty());
+        assert!(track.needs_meta_enrichment());
+    }
+
+    #[test]
+    fn dedicated_artists_keep_dashed_title() {
+        let track = parse_track(&json!({
+            "id": "fxDash01",
+            "title": "Glass - Orchard",
+            "artists": ["Северный маяк"],
+            "album": "Карты без маршрута"
+        }))
+        .unwrap();
+        assert_eq!(track.title, "Glass - Orchard");
+        assert_eq!(track.artists, vec!["Северный маяк".to_string()]);
+        assert_eq!(track.album, "Карты без маршрута");
     }
 
     #[test]
