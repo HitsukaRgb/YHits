@@ -112,6 +112,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
         actions = actions.push(retry);
     }
     actions = actions
+        .push(workers_control(app.download_workers, busy))
+        .push(enrich_toggle(app.enrich_preview_meta))
         .push(format_trigger(app.audio_format, busy))
         .push(action);
     footer = footer.push(actions);
@@ -135,6 +137,43 @@ pub fn view(app: &App) -> Element<'_, Message> {
         root = root.push(tool_popup(app, kind));
     }
     root.into()
+}
+
+fn workers_control(workers: usize, busy: bool) -> Element<'static, Message> {
+    let label = tf(Tr::WorkersLabel, &[("count", &workers.to_string())]);
+    row![
+        button(text("−").size(13))
+            .padding([8, 12])
+            .style(style::button_style)
+            .on_press_maybe((!busy && workers > crate::constants::MIN_DOWNLOAD_WORKERS).then_some(
+                Message::DecreaseDownloadWorkers,
+            )),
+        container(text(label).size(13))
+            .padding([8, 4])
+            .align_y(Alignment::Center),
+        button(text("+").size(13))
+            .padding([8, 12])
+            .style(style::button_style)
+            .on_press_maybe((!busy && workers < crate::constants::MAX_DOWNLOAD_WORKERS).then_some(
+                Message::IncreaseDownloadWorkers,
+            )),
+    ]
+    .spacing(2)
+    .align_y(Alignment::Center)
+    .into()
+}
+
+fn enrich_toggle(enabled: bool) -> Element<'static, Message> {
+    let style_fn = if enabled {
+        style::accent_button_style
+    } else {
+        style::button_style
+    };
+    button(text(t(Tr::EnrichPreviewMeta)).size(13))
+        .padding([8, 12])
+        .style(style_fn)
+        .on_press(Message::ToggleEnrichPreviewMeta)
+        .into()
 }
 
 fn format_trigger(current: AudioFormat, busy: bool) -> Element<'static, Message> {

@@ -1,6 +1,8 @@
 use super::state::{App, DownloadUi, Message, PreviewState};
 use crate::config;
-use crate::constants::{APP_TITLE, ROW_HEIGHT, ROW_SPACING};
+use crate::constants::{
+    APP_TITLE, MAX_DOWNLOAD_WORKERS, MIN_DOWNLOAD_WORKERS, ROW_HEIGHT, ROW_SPACING,
+};
 use crate::download::{
     self, DownloadEvent, DownloadItem, Finish, ToolInstallResult, ToolKind, ToolStatus,
     detect_tools, install_tool, stage,
@@ -31,6 +33,8 @@ impl App {
             Self {
                 output_dir: config::load_output_dir(),
                 audio_format: config::load_audio_format(),
+                download_workers: config::load_download_workers(),
+                enrich_preview_meta: config::load_enrich_preview_meta(),
                 format_menu_open: false,
                 format_trigger_bounds: Rectangle::default(),
                 url: String::new(),
@@ -115,6 +119,45 @@ impl App {
                 self.format_menu_open = false;
                 self.remember_audio_format();
                 Task::none()
+            }
+            Message::DecreaseDownloadWorkers => {
+                if self.control.is_some() {
+                    return Task::none();
+                }
+                let next = self.download_workers.saturating_sub(1).max(MIN_DOWNLOAD_WORKERS);
+                if next != self.download_workers {
+                    self.download_workers = next;
+                    self.remember_download_workers();
+                }
+                Task::none()
+            }
+            Message::IncreaseDownloadWorkers => {
+                if self.control.is_some() {
+                    return Task::none();
+                }
+                let next = (self.download_workers + 1).min(MAX_DOWNLOAD_WORKERS);
+                if next != self.download_workers {
+                    self.download_workers = next;
+                    self.remember_download_workers();
+                }
+                Task::none()
+            }
+            Message::ToggleEnrichPreviewMeta => {
+                self.enrich_preview_meta = !self.enrich_preview_meta;
+                self.remember_enrich_preview_meta();
+                if self.enrich_preview_meta {
+                    if let PreviewState::Ready(bundle) = &mut self.preview {
+                        for track in &mut bundle.tracks {
+                            if track.needs_meta_enrichment() {
+                                track.meta_requested = false;
+                            }
+                        }
+                    }
+                    self.meta_enriching = false;
+                    self.ensure_visible_assets()
+                } else {
+                    Task::none()
+                }
             }
             Message::RecheckTools => {
                 self.checking_tools = true;
@@ -455,8 +498,13 @@ impl App {
             stage: stage::PREPARING.into(),
         });
 
-        let (control, stream) =
-            download::start(items, directory, subfolder, self.audio_format);
+        let (control, stream) = download::start(
+            items,
+            directory,
+            subfolder,
+            self.audio_format,
+            self.download_workers,
+        );
         self.control = Some(control);
         Task::run(stream, move |event| Message::Event { generation, event })
     }
@@ -565,7 +613,7 @@ impl App {
             }
         }
 
-        if !self.meta_enriching {
+        if self.enrich_preview_meta && !self.meta_enriching {
             if bundle.shared_album {
                 let mut jobs = Vec::new();
                 for index in 0..bundle.tracks.len() {
@@ -624,6 +672,14 @@ impl App {
 
     fn remember_audio_format(&mut self) {
         let _ = config::save_audio_format(self.audio_format);
+    }
+
+    fn remember_download_workers(&mut self) {
+        let _ = config::save_download_workers(self.download_workers);
+    }
+
+    fn remember_enrich_preview_meta(&mut self) {
+        let _ = config::save_enrich_preview_meta(self.enrich_preview_meta);
     }
 
     pub fn language_code(&self) -> &'static str {

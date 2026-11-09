@@ -7,6 +7,8 @@ define_tr! {
     (DownloadAll, "Скачать все ({count})", "Download all ({count})"),
     (DownloadSelected, "Скачать выбранные ({count})", "Download selected ({count})"),
     (FormatLabel, "Формат: {format}", "Format: {format}"),
+    (WorkersLabel, "Потоки: {count}", "Threads: {count}"),
+    (EnrichPreviewMeta, "Теги в списке", "Tags in list"),
     (Retry, "Попробовать снова", "Try again"),
     (RetryCount, "Попробовать снова ({count})", "Try again ({count})"),
     (SelectAll, "Все", "All"),

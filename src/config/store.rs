@@ -1,14 +1,38 @@
+use crate::constants::{DEFAULT_DOWNLOAD_WORKERS, MAX_DOWNLOAD_WORKERS, MIN_DOWNLOAD_WORKERS};
 use crate::download::AudioFormat;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Config {
     #[serde(default)]
     output_dir: String,
     #[serde(default)]
     audio_format: AudioFormat,
+    #[serde(default = "default_download_workers")]
+    download_workers: u8,
+    #[serde(default = "default_enrich_preview_meta")]
+    enrich_preview_meta: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            output_dir: String::new(),
+            audio_format: AudioFormat::default(),
+            download_workers: default_download_workers(),
+            enrich_preview_meta: default_enrich_preview_meta(),
+        }
+    }
+}
+
+fn default_download_workers() -> u8 {
+    DEFAULT_DOWNLOAD_WORKERS as u8
+}
+
+fn default_enrich_preview_meta() -> bool {
+    true
 }
 
 fn config_path() -> Option<PathBuf> {
@@ -43,6 +67,10 @@ fn save_config(config: &Config) -> Result<(), String> {
     fs::write(path, text).map_err(|err| err.to_string())
 }
 
+pub fn clamp_download_workers(value: usize) -> usize {
+    value.clamp(MIN_DOWNLOAD_WORKERS, MAX_DOWNLOAD_WORKERS)
+}
+
 pub fn load_output_dir() -> String {
     let config = load_config();
     if config.output_dir.trim().is_empty() {
@@ -65,6 +93,26 @@ pub fn load_audio_format() -> AudioFormat {
 pub fn save_audio_format(audio_format: AudioFormat) -> Result<(), String> {
     let mut config = load_config();
     config.audio_format = audio_format;
+    save_config(&config)
+}
+
+pub fn load_download_workers() -> usize {
+    clamp_download_workers(load_config().download_workers as usize)
+}
+
+pub fn save_download_workers(download_workers: usize) -> Result<(), String> {
+    let mut config = load_config();
+    config.download_workers = clamp_download_workers(download_workers) as u8;
+    save_config(&config)
+}
+
+pub fn load_enrich_preview_meta() -> bool {
+    load_config().enrich_preview_meta
+}
+
+pub fn save_enrich_preview_meta(enrich_preview_meta: bool) -> Result<(), String> {
+    let mut config = load_config();
+    config.enrich_preview_meta = enrich_preview_meta;
     save_config(&config)
 }
 

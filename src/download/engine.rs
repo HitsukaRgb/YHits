@@ -9,12 +9,12 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use crate::constants::{MAX_DOWNLOAD_WORKERS, MIN_DOWNLOAD_WORKERS};
 use crate::i18n::{Tr, t, tf};
 
 const SEP: char = '\u{1f}';
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const CONCURRENT_FRAGMENTS: &str = "4";
-const MAX_DOWNLOAD_WORKERS: usize = 8;
 
 pub mod stage {
     pub const PREPARING: &str = "preparing";
@@ -23,12 +23,11 @@ pub mod stage {
     pub const DONE: &str = "done";
 }
 
-fn download_worker_count(item_count: usize) -> usize {
-    let cpus = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4);
-    let target = cpus.saturating_sub(1).max(2);
-    target.min(MAX_DOWNLOAD_WORKERS).min(item_count.max(1))
+fn download_worker_count(item_count: usize, configured: usize) -> usize {
+    configured
+        .clamp(MIN_DOWNLOAD_WORKERS, MAX_DOWNLOAD_WORKERS)
+        .min(item_count.max(1))
+        .max(1)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -329,6 +328,7 @@ pub fn start(
     output_dir: PathBuf,
     subfolder: Option<String>,
     audio_format: AudioFormat,
+    workers: usize,
 ) -> (
     DownloadControl,
     impl Stream<Item = DownloadEvent> + Send + 'static,
@@ -340,6 +340,7 @@ pub fn start(
         active_pids: Arc::clone(&active_pids),
     };
     let (tx, rx) = unbounded();
+    let workers = download_worker_count(items.len(), workers);
 
     thread::spawn(move || {
         let outcome = run_download(
@@ -347,6 +348,7 @@ pub fn start(
             output_dir,
             subfolder.as_deref(),
             audio_format,
+            workers,
             cancel_flag,
             active_pids,
             tx.clone(),
@@ -521,6 +523,7 @@ fn run_download(
     output_dir: PathBuf,
     subfolder: Option<&str>,
     audio_format: AudioFormat,
+    workers: usize,
     cancel_flag: Arc<AtomicBool>,
     active_pids: Arc<Mutex<Vec<u32>>>,
     tx: UnboundedSender<DownloadEvent>,
@@ -551,7 +554,7 @@ fn run_download(
         tracks_done: Some(0),
     });
 
-    let workers = download_worker_count(items.len());
+    let workers = download_worker_count(items.len(), workers);
     let next_index = Arc::new(AtomicU32::new(0));
     let items = Arc::new(items);
     let output_dir = Arc::new(output_dir);

@@ -13,3 +13,6 @@ pub const LANG_CAPSULE_WIDTH: f32 = 44.0;
 pub const TOOL_POPUP_WIDTH: f32 = 360.0;
 pub const TOOL_POPUP_DETAIL_HEIGHT: f32 = 72.0;
 pub const FORMAT_PICKER_WIDTH: f32 = 148.0;
+pub const MIN_DOWNLOAD_WORKERS: usize = 1;
+pub const MAX_DOWNLOAD_WORKERS: usize = 8;
+pub const DEFAULT_DOWNLOAD_WORKERS: usize = 2;

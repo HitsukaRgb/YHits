@@ -9,6 +9,8 @@ use iced::Rectangle;
 pub struct App {
     pub output_dir: String,
     pub audio_format: AudioFormat,
+    pub download_workers: usize,
+    pub enrich_preview_meta: bool,
     pub format_menu_open: bool,
     pub format_trigger_bounds: Rectangle,
     pub url: String,
@@ -58,6 +60,9 @@ pub enum Message {
     CloseFormatMenu,
     FormatTriggerBounds(Rectangle),
     SetAudioFormat(AudioFormat),
+    DecreaseDownloadWorkers,
+    IncreaseDownloadWorkers,
+    ToggleEnrichPreviewMeta,
     RecheckTools,
     ToolsChecked(ToolStatus),
     OpenToolPopup(ToolKind),
